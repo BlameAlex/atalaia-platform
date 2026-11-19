@@ -111,6 +111,11 @@ docker compose down -v      # o: podman compose down -v
 tools/setup.sh
 ```
 
+Para borrar solo los SOS (incidentes, historial de estados, rutas y paradas) y conservar usuarios, vehículos y lugares:
+```bash
+cd server && npm run clear-sos   # en una transacción; recarga el panel después
+```
+
 ## Solución de problemas
 - **El teléfono no llega a la API:** comprueba que está en la misma Wi-Fi y que la red no aísla clientes. En Fedora, firewalld bloquea los puertos de la red local; ábrelos para la sesión con `sudo firewall-cmd --add-port=3100/tcp --add-port=8081/tcp`.
 - **`el puerto N está en uso`:** otro proceso usa ese puerto; ciérralo o usa `tools/dev.sh --port M`.
