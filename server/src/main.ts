@@ -12,6 +12,8 @@ export async function createApp() {
   await migrate();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['error', 'warn'] });
   app.setGlobalPrefix('api/v1');
+  // Expo web (localhost:8081) calls the API cross-origin. Auth is a Bearer header, no cookies, so any origin is safe.
+  app.enableCors();
   app.useGlobalFilters(new ErrorFilter());
   app.useStaticAssets(join(REPO, 'dashboard'), { prefix: '/dashboard/' });
   return app;
