@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rescue Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+    body { font: 14px/1.4 system-ui, sans-serif; }
+    .panel { position: absolute; z-index: 1000; background: #fff; border-radius: 6px;
+             box-shadow: 0 1px 4px rgba(0,0,0,.35); padding: 8px 10px; }
+    #sim { top: 10px; left: 50%; transform: translateX(-50%); font-weight: 700;
+           background: #222; color: #fff; letter-spacing: .05em; }
+    #controls { top: 10px; right: 10px; width: min(300px, calc(100% - 40px)); max-height: calc(100% - 60px);
+                overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+    #controls h3 { margin: 6px 0 0; font-size: 13px; }
+    .vrow { display: flex; gap: 4px; }
+    .vrow input { font: inherit; width: 0; flex: 1; padding: 2px 4px; }
+    #plan-out ul { margin: 2px 0 6px; padding-left: 18px; }
+    #plan-out li { margin: 2px 0; }
+    .swatch { display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 4px; }
+    .rounds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .rounds button[aria-pressed="true"] { background: #1f2a44; color: #fff; }
+    #trips li { cursor: pointer; border-radius: 4px; padding: 2px 4px; }
+    #trips li:hover, #trips li:focus { background: #f1f3f5; }
+    #trips li.sel { background: #dbe8ff; }
+    .trip-tip { width: 260px; white-space: normal; }
+    #legend { bottom: 30px; left: 10px; }
+    #legend div { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+    #banner { top: 56px; left: 50%; transform: translateX(-50%); background: #fde2e1;
+              color: #7a1010; display: none; max-width: calc(100% - 32px); }
+    #banner.show { display: block; }
+    button { font: inherit; cursor: pointer; padding: 4px 10px; }
+
+    /* Marker shapes: shape + text distinguish types, color is secondary. */
+    .m { display: flex; align-items: center; justify-content: center; font-weight: 700;
+         font-size: 11px; border: 2px solid #000; box-sizing: border-box; white-space: nowrap; }
+    .m-hq { width: 34px; height: 24px; background: #1f2a44; color: #fff; border-radius: 3px; }
+    .m-hospital { width: 34px; height: 24px; background: #fff; color: #c00; border-radius: 12px; }
+    .m-sos { width: 40px; height: 22px; border-radius: 11px 11px 11px 0; color: #000; }
+    .r1 { background: #ffe066; }
+    .r2 { background: #ff9f43; }
+    .r3 { background: #e03131; color: #fff; }
+    .m.hl { transform: scale(1.3); box-shadow: 0 0 0 3px #fff, 0 0 0 6px #1f2a44; }
+    .leaflet-div-icon { background: none; border: none; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="sim" class="panel">SIMULATION</div>
+  <div id="controls" class="panel">
+    <button id="regen">Generate new scenario</button>
+    <h3>Fleet (capacity 2–6)</h3>
+    <div id="fleet"></div>
+    <button id="add-vehicle">Add vehicle</button>
+    <button id="plan">Plan routes</button>
+    <div id="plan-out"></div>
+  </div>
+  <div id="banner" class="panel" role="alert">
+    <span id="banner-msg">Basemap failed to load.</span>
+    <button id="retry">Retry</button>
+  </div>
+  <div id="legend" class="panel">
+    <div><span class="m m-hq">HQ</span> Headquarters</div>
+    <div><span class="m m-hospital">✚ 1</span> Hospital</div>
+    <div><span class="m m-sos r1">1·R1</span> SOS, risk 1 (low)</div>
+    <div><span class="m m-sos r2">1·R2</span> SOS, risk 2</div>
+    <div><span class="m m-sos r3">1·R3</span> SOS, risk 3 (high)</div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const map = L.map('map').setView([21.16, -86.86], 14);
+    const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    const group = L.layerGroup().addTo(map);
+    const routes = L.layerGroup().addTo(map);
+    let markerById = {};
+    let scenario = [];
+    let assignment = {}; // callId -> popup line from the last plan
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+    const banner = document.getElementById('banner');
+    const bannerMsg = document.getElementById('banner-msg');
+    const retry = document.getElementById('retry');
+    let retryAction = null, errorKind = null;
+    function showError(kind, msg, action) {
+      errorKind = kind;
+      bannerMsg.textContent = msg;
+      retryAction = action;
+      banner.classList.add('show');
+    }
+    function hideError() { errorKind = null; banner.classList.remove('show'); }
+    retry.onclick = () => { hideError(); retryAction?.(); };
+
+    // FR-06: retry only redraws tiles; markers stay as they are.
+    tiles.on('tileerror', () => showError('tiles', 'Basemap failed to load.', () => tiles.redraw()));
+    tiles.on('tileload', () => { if (errorKind === 'tiles') hideError(); });
+
+    const html = {
+      hq: () => '<div class="m m-hq">HQ</div>',
+      hospital: (m) => `<div class="m m-hospital">✚ ${m.id.split('-')[1]}</div>`,
+      sos: (m) => `<div class="m m-sos r${m.risk}">${m.id.split('-')[1]}·R${m.risk}</div>`,
+    };
+    const size = { hq: [34, 24], hospital: [34, 24], sos: [40, 22] };
+    const typeName = { hq: 'Headquarters', hospital: 'Hospital', sos: 'SOS call' };
+
+    function popup(m) {
+      return `<b>${m.label}</b><br>Type: ${typeName[m.type]}<br>` +
+        (m.type === 'sos' ? `Risk: ${m.risk} / 3<br>` : '') +
+        `Lat ${m.latitude.toFixed(6)}, Lng ${m.longitude.toFixed(6)}` +
+        (assignment[m.id] ? `<br><b>${assignment[m.id]}</b>` : '');
+    }
+
+    async function loadScenario() {
+      let markers;
+      try {
+        const res = await fetch('/api/scenario');
+        if (!res.ok) throw new Error(res.status);
+        markers = await res.json();
+      } catch {
+        showError('api', 'Could not generate scenario.', loadScenario);
+        return;
+      }
+      scenario = markers;
+      clearPlan();
+      group.clearLayers();
+      markerById = {};
+      for (const m of markers) {
+        const s = size[m.type];
+        const icon = L.divIcon({ html: html[m.type](m), iconSize: s, iconAnchor: [s[0] / 2, s[1] / 2], className: '' });
+        markerById[m.id] = L.marker([m.latitude, m.longitude], { icon, title: m.label, alt: m.label })
+          .bindPopup(() => popup(m)).addTo(group);
+      }
+      map.fitBounds(L.latLngBounds(markers.map((m) => [m.latitude, m.longitude])), { padding: [40, 40] });
+    }
+
+    // --- Fleet + route plan ---
+    const fleet = document.getElementById('fleet');
+    const planOut = document.getElementById('plan-out');
+    const colors = ['#1c7ed6', '#7048e8', '#0ca678', '#d6336c', '#495057', '#f59f00'];
+    const reasons = {
+      insufficient_capacity: 'no vehicle trips left',
+      no_drivable_route: 'no drivable route',
+      snap_too_far: 'too far from a drivable road',
+      no_route: 'no route on the road network',
+    };
+    const min = (sec) => `${Math.round(sec / 60)} min`;
+
+    function addVehicle(id, capacity) {
+      const row = document.createElement('div');
+      row.className = 'vrow';
+      row.innerHTML = `<input aria-label="Vehicle id" value="${esc(id)}">` +
+        `<input aria-label="Capacity" type="number" min="2" max="6" value="${capacity}">` +
+        `<button aria-label="Remove vehicle">✕</button>`;
+      row.querySelector('button').onclick = () => row.remove();
+      fleet.append(row);
+    }
+    [['V1', 6], ['V2', 4], ['V3', 2]].forEach(([id, c]) => addVehicle(id, c));
+    document.getElementById('add-vehicle').onclick = () => addVehicle(`V${fleet.children.length + 1}`, 4);
+
+    const nextLayer = L.layerGroup().addTo(map);
+    let plan = null, round = 1, selected = null, vehicleColor = {}, lines = new Map(); // lines: trip -> polyline (active round)
+    const latlngs = (t) => t.geometry.map(([lng, lat]) => [lat, lng]);
+    const tripName = (t) => `${esc(t.vehicleId)} trip ${t.tripNumber}`;
+    // Driven stops joined by arrows; calls collected on foot are attached to their stop with "+".
+    const stopsText = (t) => t.stops.reduce((parts, s) => {
+      const txt = `${esc(s.label)} (R${s.risk}, ${s.onFoot ? 'on foot' : min(s.pickupEtaSec)})`;
+      if (s.onFoot && parts.length) parts[parts.length - 1] += ` + ${txt}`;
+      else parts.push(txt);
+      return parts;
+    }, []).join(' → ');
+    const tripDetails = (t) =>
+      `<b>${tripName(t)}</b> · ${t.seatsUsed}/${t.capacity} seats · from ${esc(t.start.label)} at ${min(t.departSec)} · ` +
+      stopsText(t) + ` → ${esc(t.hospital.label)}, ${min(t.hospital.etaSec)}` +
+      (t.droppedEarly ? ' <i>(dropped off first)</i>' : '');
+
+    function clearPlan() {
+      routes.clearLayers();
+      nextLayer.clearLayers();
+      assignment = {};
+      plan = null;
+      selected = null;
+      lines = new Map();
+      planOut.innerHTML = '';
+    }
+
+    const styleFor = (t, hover = false) =>
+      selected === t || hover ? { weight: 8, opacity: 1 } : { weight: 5, opacity: selected ? 0.25 : 0.8 };
+
+    // Enlarge the stop + hospital markers of trip t (null clears).
+    function markMarkers(t) {
+      const ids = new Set(t ? [...t.stops.map((s) => s.callId), t.hospital.id] : []);
+      for (const [id, mk] of Object.entries(markerById)) {
+        mk.getElement()?.firstElementChild?.classList.toggle('hl', ids.has(id));
+        mk.setZIndexOffset(ids.has(id) ? 1000 : 0);
+      }
+    }
+
+    // Hover preview from the map line or the panel row; leaving falls back to the selection.
+    function preview(t, on) {
+      lines.get(t).setStyle(styleFor(t, on));
+      if (on) lines.get(t).bringToFront();
+      else if (selected) lines.get(selected).bringToFront();
+      markMarkers(on ? t : selected);
+    }
+
+    function select(t) {
+      selected = t;
+      nextLayer.clearLayers();
+      for (const [x, line] of lines) line.setStyle(styleFor(x));
+      lines.get(t).bringToFront();
+      markMarkers(t);
+      const shown = [...lines.keys()];
+      planOut.querySelectorAll('#trips li').forEach((li, i) => li.classList.toggle('sel', shown[i] === t));
+      const next = plan.trips.find((x) => x.vehicleId === t.vehicleId && x.tripNumber === t.tripNumber + 1);
+      if (next) {
+        L.polyline(latlngs(next), { color: vehicleColor[next.vehicleId], weight: 4, opacity: 0.9, dashArray: '10 8', bubblingMouseEvents: false })
+          .bindTooltip(`Next: ${tripDetails(next)}`, { sticky: true, className: 'trip-tip' }).addTo(nextLayer);
+      }
+      document.getElementById('next').innerHTML = `<h3>Next planned trip for ${esc(t.vehicleId)}</h3>` +
+        (next ? `<div><span class="swatch" style="border-top: 3px dashed ${vehicleColor[next.vehicleId]}"></span>${tripDetails(next)}</div>`
+              : '<div>No further trips.</div>');
+    }
+
+    function unselect() {
+      if (!selected) return;
+      selected = null;
+      nextLayer.clearLayers();
+      for (const [x, line] of lines) line.setStyle(styleFor(x));
+      markMarkers(null);
+      planOut.querySelectorAll('#trips li.sel').forEach((li) => li.classList.remove('sel'));
+      document.getElementById('next').innerHTML = '';
+    }
+    map.on('click', unselect);
+
+    function render() {
+      const label = Object.fromEntries(scenario.map((m) => [m.id, m.label]));
+      const rounds = Math.max(0, ...plan.trips.map((t) => t.tripNumber));
+      const shown = plan.trips.filter((t) => t.tripNumber === round);
+      let out = '';
+      if (rounds) {
+        out += '<h3>Trip rounds</h3><div class="rounds">';
+        for (let r = 1; r <= rounds; r++) {
+          out += `<button data-round="${r}" aria-pressed="${r === round}">Round ${r} (${plan.trips.filter((t) => t.tripNumber === r).length})</button>`;
+        }
+        out += '</div><ul id="trips">' + shown.map((t) =>
+          `<li tabindex="0"><span class="swatch" style="border-top-color: ${vehicleColor[t.vehicleId]}"></span>${tripDetails(t)}</li>`).join('') +
+          '</ul><div id="next"></div>';
+      } else out += '<div>No trips planned.</div>';
+      if (plan.idleVehicles.length) out += `<div>Idle: ${plan.idleVehicles.map(esc).join(', ')}</div>`;
+      if (plan.unassigned.length) {
+        out += `<h3>Unassigned (${plan.unassigned.length})</h3><ul>` +
+          plan.unassigned.map((u) => `<li>${esc(u.label)} (R${u.risk}): ${reasons[u.reason]}</li>`).join('') + '</ul>';
+      }
+      if (plan.unreachablePoints.length) {
+        out += '<h3>Unreachable points</h3><ul>' + plan.unreachablePoints
+          .map((p) => `<li>${esc(label[p.id] ?? p.id)}: ${reasons[p.reason]} (${p.snapMeters} m to road)</li>`).join('') + '</ul>';
+      }
+      planOut.innerHTML = out;
+      planOut.querySelectorAll('[data-round]').forEach((b) => (b.onclick = () => { round = Number(b.dataset.round); render(); }));
+      planOut.querySelectorAll('#trips li').forEach((li, i) => {
+        li.onclick = () => select(shown[i]);
+        li.onmouseenter = () => preview(shown[i], true);
+        li.onmouseleave = () => preview(shown[i], false);
+        li.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(shown[i]); } };
+      });
+
+      // Map shows only the active round.
+      routes.clearLayers();
+      nextLayer.clearLayers();
+      selected = null;
+      markMarkers(null);
+      // Soft-hide SOS calls already picked up in earlier rounds.
+      const done = new Set(plan.trips.filter((t) => t.tripNumber < round).flatMap((t) => t.stops.map((s) => s.callId)));
+      for (const [id, mk] of Object.entries(markerById)) mk.setOpacity(done.has(id) ? 0.3 : 1);
+      lines = new Map();
+      for (const t of shown) {
+        const line = L.polyline(latlngs(t), { color: vehicleColor[t.vehicleId], weight: 5, opacity: 0.8, bubblingMouseEvents: false })
+          .bindTooltip(tripDetails(t), { sticky: true, className: 'trip-tip' })
+          .on('mouseover', () => preview(t, true))
+          .on('mouseout', () => preview(t, false))
+          .on('click', () => select(t))
+          .addTo(routes);
+        lines.set(t, line);
+      }
+    }
+
+    async function planRoutes() {
+      const vehicles = [...fleet.children].map((r) => {
+        const [id, cap] = r.querySelectorAll('input');
+        return { id: id.value.trim(), capacity: Number(cap.value) };
+      });
+      planOut.textContent = 'Planning…';
+      let result;
+      try {
+        const res = await fetch('/api/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ markers: scenario, vehicles }),
+        });
+        result = await res.json();
+        if (!res.ok) throw new Error(result.message || res.status);
+      } catch (e) {
+        planOut.textContent = '';
+        showError('api', `Route planning failed: ${e.message}`, planRoutes);
+        return;
+      }
+      clearPlan();
+      plan = result;
+      vehicleColor = Object.fromEntries(vehicles.map((v, i) => [v.id, colors[i % colors.length]]));
+      plan.trips.forEach((t) => {
+        let n = 0;
+        t.stops.forEach((s) => {
+          if (!s.onFoot) n++;
+          assignment[s.callId] = `${tripName(t)} · stop ${n}${s.onFoot ? ' · picked up on foot' : ''} · pickup ETA ${min(s.pickupEtaSec)}`;
+        });
+      });
+      plan.unassigned.forEach((u) => (assignment[u.callId] = `Unassigned: ${reasons[u.reason]}`));
+      round = 1;
+      render();
+    }
+
+    document.getElementById('plan').onclick = planRoutes;
+    document.getElementById('regen').onclick = loadScenario;
+    loadScenario();
+  </script>
+</body>
+</html>

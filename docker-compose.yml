@@ -1,0 +1,15 @@
+services:
+  db:
+    image: docker.io/library/postgres:17   # fully qualified: podman short-name prompt
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["127.0.0.1:${PG_PORT:-5432}:5432"]   # never exposed to LAN
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      retries: 30
+volumes:
+  pgdata: {}

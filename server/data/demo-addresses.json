@@ -1,0 +1,192 @@
+[
+ {
+  "street": "901 Ave C",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.787365,
+  "lng": -95.823364,
+  "fips": "48201"
+ },
+ {
+  "street": "5414 Franz Rd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.8016,
+  "lng": -95.81755,
+  "fips": "48201"
+ },
+ {
+  "street": "5000 Katy Mills Cir",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77494",
+  "country": "United States",
+  "lat": 29.780127,
+  "lng": -95.809216,
+  "fips": "48201"
+ },
+ {
+  "street": "5505 4th St",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.788992,
+  "lng": -95.82008,
+  "fips": "48201"
+ },
+ {
+  "street": "1410 Ave D",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.792244,
+  "lng": -95.824355,
+  "fips": "48201"
+ },
+ {
+  "street": "5601 Franz Rd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.801499,
+  "lng": -95.821631,
+  "fips": "48201"
+ },
+ {
+  "street": "6001 Highway Blvd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77494",
+  "country": "United States",
+  "lat": 29.785721,
+  "lng": -95.826861,
+  "fips": "48157"
+ },
+ {
+  "street": "5222 Franz Rd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.801232,
+  "lng": -95.806336,
+  "fips": "48201"
+ },
+ {
+  "street": "5719 2nd St",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.787225,
+  "lng": -95.822429,
+  "fips": "48201"
+ },
+ {
+  "street": "24200 Kingsland Blvd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77494",
+  "country": "United States",
+  "lat": 29.773678,
+  "lng": -95.793395,
+  "fips": "48201"
+ },
+ {
+  "street": "5602 3rd St",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.788217,
+  "lng": -95.821159,
+  "fips": "48201"
+ },
+ {
+  "street": "5100 Franz Rd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.801237,
+  "lng": -95.802194,
+  "fips": "48201"
+ },
+ {
+  "street": "5300 Franz Rd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.801705,
+  "lng": -95.809163,
+  "fips": "48201"
+ },
+ {
+  "street": "5800 Franz Rd",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.801565,
+  "lng": -95.824342,
+  "fips": "48201"
+ },
+ {
+  "street": "5400 E 4th St",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.789016,
+  "lng": -95.816336,
+  "fips": "48201"
+ },
+ {
+  "street": "5600 5th St",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.789992,
+  "lng": -95.821135,
+  "fips": "48201"
+ },
+ {
+  "street": "1100 Ave C",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.789105,
+  "lng": -95.823232,
+  "fips": "48201"
+ },
+ {
+  "street": "5500 1st St",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77493",
+  "country": "United States",
+  "lat": 29.786428,
+  "lng": -95.820036,
+  "fips": "48201"
+ },
+ {
+  "street": "6000 Woods Ln",
+  "city": "Katy",
+  "state": "TX",
+  "zip": "77494",
+  "country": "United States",
+  "lat": 29.782644,
+  "lng": -95.827917,
+  "fips": "48157"
+ }
+]
